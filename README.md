@@ -5,7 +5,7 @@
 AWS Lambda (Python 3.11, Docker) をベースに、フロントエンドからの入力を処理し、  
 小型 LLM や外部 LLM API を用いて応答を生成します。
 
-- **Stage 2**: フロントエンドと連携し、小型 LLM (llama.cpp / GPT4All) で応答
+- **Stage 2**: フロントエンドと連携し、小型 LLM (llama.cpp / GPT4All) で応答。Lambda 起動ごとにモデルを再利用するキャッシュ機構を備え、本番環境でも安定して動作します。
 - **Stage 3**: 外部 LLM API (OpenAI / Bedrock / HuggingFace) と連携し高度な応答を実現
 
 ---
@@ -22,8 +22,8 @@ AWS Lambda (Python 3.11, Docker) をベースに、フロントエンドから�
 1. **イベント受信**  
    フロントエンドから送信された入力を Lambda ハンドラで受け取る
 
-2. **小型 LLM 呼び出し (Stage 2)**  
-   定型文で処理できない入力を llama.cpp / GPT4All で処理
+2. **小型 LLM 呼び出し (Stage 2)**
+   定型文で処理できない入力を llama.cpp / GPT4All で処理。構成ミスや推論エラーを検知した場合は自動的に Stage 3 の外部 LLM へフォールバックします。
 
 3. **外部 API 呼び出し (Stage 3)**  
    小型 LLM で処理困難な入力は外部 LLM API にエスカレーション
@@ -55,6 +55,11 @@ curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d
 `.env` または AWS Lambda の環境変数で設定します。
 
 - `USE_LOCAL_LLM` : true の場合、小型 LLM (llama.cpp / GPT4All) を利用
+- `LOCAL_LLM_BACKEND` : `gpt4all` / `llama.cpp` など利用するバックエンド (`auto` の場合は自動検出)
+- `LOCAL_LLM_MODEL` : ローカル推論に利用するモデルファイル (GGUF/GPT4All)
+- `LOCAL_LLM_MAX_TOKENS` : ローカルモデルの最大生成トークン数 (省略可、デフォルト256)
+- `LOCAL_LLM_TEMPERATURE` : 生成時の温度パラメータ (省略可、デフォルト0.7)
+- `LOCAL_LLM_ALLOW_FALLBACK` : true の場合のみ、ローカル LLM が利用できない際に定型文へフォールバック (デフォルト false)
 - `OPENAI_API_KEY` : OpenAI API キー
 - `BEDROCK_CREDENTIALS` : AWS Bedrock 用の認証情報
 - `HUGGINGFACE_TOKEN` : HuggingFace Hub 用の認証トークン
