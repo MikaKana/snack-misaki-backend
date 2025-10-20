@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  lambda:
+    build:
+      context: .
+      target: development
+    ports:
+      - "9000:8080"
+    environment:
+      USE_LOCAL_LLM: "false"
+    volumes:
+      - ./app:/var/task/app
+      - ./tests:/var/task/tests
+      - ./pyproject.toml:/var/task/pyproject.toml:ro
+      - ./README.md:/var/task/README.md:ro
+      - ./LICENSE:/var/task/LICENSE:ro
+    command: ["app.handler.lambda_handler"]

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "snack-misaki-backend"
+version = "0.1.0"
+description = "AWS Lambda backend for Snack Misaki."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Snack Misaki Team" }]
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]

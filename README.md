@@ -34,6 +34,16 @@ AWS Lambda (Python 3.11, Docker) をベースに、フロントエンドから�
 ---
 
 ## 実行方法（ローカル）
+### Docker Compose (推奨)
+
+開発時は Docker Compose で Lambda 互換の実行環境を立ち上げられます。
+
+```bash
+docker compose up --build
+```
+
+ホストからのコード変更はコンテナにマウントされるため、再ビルドせずにすぐ反映されます。バックエンドは `localhost:9000` (Lambda RIE の既定ポート) で待ち受けます。
+
 ### Docker build
 ```bash
 docker build -t snack-misaki-backend .
@@ -47,6 +57,21 @@ docker run -p 9000:8080 snack-misaki-backend
 ### イベント送信
 ```bash
 curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{"input":"こんばんは"}'
+```
+
+### 依存関係の管理
+
+`requirements.txt` の代わりに [PEP 621](https://peps.python.org/pep-0621/) 形式の `pyproject.toml` で依存関係を管理しています。ローカルでテストを実行する場合は以下を利用してください。
+
+```bash
+pip install .[dev]
+pytest
+```
+
+またはコンテナ環境から実行する場合は次のようにします。
+
+```bash
+docker compose run --rm lambda pytest
 ```
 
 ---
