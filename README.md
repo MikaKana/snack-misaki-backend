@@ -1,5 +1,8 @@
 # Snack Misaki — Backend
 
+
+※phase1ブランチにて、実装中
+
 ## 概要
 このリポジトリは **Snack Misaki プロジェクトのバックエンド** です。  
 AWS Lambda (Python 3.11, Docker) をベースに、フロントエンドからの入力を処理し、  
@@ -61,9 +64,9 @@ AWS Lambda (Python 3.11, Docker) をベースに、フロントエンドから�
    - 期待するレスポンスが返ってくるかを確認してください。
 
 4. **テストの実行**
-   - 開発コンテナ内でテストを走らせる場合
+   - 開発コンテナ内でテストを走らせる場合（Lambda ランタイムのエントリポイントを無効化して pytest を実行）
      ```bash
-     docker compose run --rm lambda pytest
+     docker compose run --rm --entrypoint "" lambda python -m pytest
      ```
    - ホスト環境で直接テストする場合（PEP 621 形式の依存管理を使用）
      ```bash
@@ -79,14 +82,6 @@ docker build -t snack-misaki-backend .
 ### Lambda エミュレータ起動
 ```bash
 docker run -p 9000:8080 snack-misaki-backend
-```
-
-
-
-またはコンテナ環境から実行する場合は次のようにします。
-
-```bash
-docker compose run --rm lambda pytest
 ```
 
 ---
