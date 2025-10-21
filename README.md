@@ -105,8 +105,62 @@ docker build -t snack-misaki-backend .
 ```bash
 docker run -p 9000:8080 snack-misaki-backend
 ```
+---
+
+## ローカル LLM (TinyLlama) 導入手順
+AWS Lambda 上でも扱える軽量モデルとして、**TinyLlama-1.1B-Chat** の 4bit 量子化版（GGUF）を想定しています。モデルは Apache-2.0 ライセンスで提供されており、商用利用も可能です。量子化ファイルはおよそ 350 MB 程度で、Lambda のデプロイパッケージやレイヤーにも収まります。
+
+### 1. llama.cpp バックエンドの用意
+```bash
+git clone https://github.com/ggerganov/llama.cpp.git
+cd llama.cpp
+cmake -B build
+cmake --build build --config Release
+```
+
+- macOS では `cmake -B build -DGGML_METAL=ON` など、環境に応じたオプションを追加してください。
+- ビルド後に生成されるバイナリ (`./build/bin/llama-cli` など) を Lambda ランタイムに同梱するか、ホストマシンの実行パスに追加します。
+
+### 2. TinyLlama GGUF モデルの取得
+```bash
+pip install --upgrade huggingface_hub
+huggingface-cli download --local-dir models/tinyllama \
+  TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+  tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+```
+
+- `models/tinyllama` 直下に `tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf` が配置されます。Lambda に同梱する場合は `zip` などで圧縮し、デプロイパッケージまたはレイヤーに含めてください。
+- 他の量子化レベル（`Q2_K` など）を使用するとさらにサイズを削減できますが、出力品質が低下する場合があります。
+
+### 3. 環境変数の設定
+`.env` もしくは Lambda の環境変数で次の値を指定します。
+
+```env
+USE_LOCAL_LLM=true
+LOCAL_LLM_BACKEND=llama.cpp
+LOCAL_LLM_MODEL=/var/task/models/tinyllama/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+LOCAL_LLM_MAX_TOKENS=256
+LOCAL_LLM_TEMPERATURE=0.7
+```
+
+- `LOCAL_LLM_MODEL` には Lambda 実行環境から参照可能なモデルファイルの絶対パスを指定してください。`/var/task` はデプロイパッケージ、`/opt` はレイヤーを指します。
+- `LOCAL_LLM_MAX_TOKENS` などのパラメータは、ユースケースに合わせて調整できます。
+
+### 4. 動作確認
+開発用コンテナ、または Lambda 実行環境で以下のようにテストできます。
+
+```bash
+docker compose run --rm --entrypoint "" \
+  -v "$PWD/models":/var/task/models \
+  lambda python -m pytest tests/test_local_llm.py
+```
+
+- 上記例では `models` ディレクトリをコンテナへマウントしてローカル推論を有効化しています。
+- Lambda へデプロイする際は、ビルド済みの `llama.cpp` バイナリと GGUF モデルを同梱し、`USE_LOCAL_LLM=true` を設定してください。
 
 ---
+
+
 
 ## 環境変数
 `.env` または AWS Lambda の環境変数で設定します。
