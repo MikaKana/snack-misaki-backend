@@ -4,7 +4,7 @@
 ※phase1ブランチにて、実装中
 
 ## 概要
-このリポジトリは **Snack Misaki プロジェクトのバックエンド** です。  
+このリポジトリは **Snack Misaki プロジェクトのバックエンド** です。
 AWS Lambda (Python 3.11, Docker) をベースに、フロントエンドからの入力を処理し、  
 小型 LLM や外部 LLM API を用いて応答を生成します。
 
@@ -72,6 +72,28 @@ AWS Lambda (Python 3.11, Docker) をベースに、フロントエンドから�
      ```bash
      pip install .[dev]
      pytest
+     ```
+
+5. **Lint の実行**
+   - 開発コンテナ内で実行する場合
+     ```bash
+     docker compose run --rm --entrypoint "" lambda python -m ruff check .
+     ```
+   - ホスト環境で直接実行する場合
+     ```bash
+     pip install .[dev]
+     ruff check .
+     ```
+
+6. **自動整形（フォーマッタ）の実行**
+   - 開発コンテナ内で実行する場合
+     ```bash
+     docker compose run --rm --entrypoint "" lambda python -m ruff format
+     ```
+   - ホスト環境で直接実行する場合
+     ```bash
+     pip install .[dev]
+     ruff format
      ```
 
 ### Docker build
