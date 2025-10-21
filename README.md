@@ -38,11 +38,38 @@ AWS Lambda (Python 3.11, Docker) をベースに、フロントエンドから�
 
 開発時は Docker Compose で Lambda 互換の実行環境を立ち上げられます。
 
-```bash
-docker compose up --build
-```
+1. **初回セットアップ**
+   ```bash
+   docker compose up --build
+   ```
+   - `--build` を付けると依存パッケージを含むコンテナイメージが再構築されます。
+   - バックエンドは `localhost:9000` (Lambda RIE の既定ポート) で待ち受けます。
 
-ホストからのコード変更はコンテナにマウントされるため、再ビルドせずにすぐ反映されます。バックエンドは `localhost:9000` (Lambda RIE の既定ポート) で待ち受けます。
+2. **コード修正の反映**
+   - ホストで変更したコードはコンテナにマウントされるため、コンテナを再起動しなくても即座に反映されます。
+   - バックエンドのログは `docker compose logs -f` で確認できます。
+
+3. **イベント送信（動作確認）**
+   - Lambda RIE では [Invoke エンドポイント](https://docs.aws.amazon.com/ja_jp/lambda/latest/dg/images-test.html) に対してリクエストを送ります。
+   - 例: `curl` で JSON ペイロードを送信する
+     ```bash
+     curl -X POST \
+       "http://localhost:9000/2015-03-31/functions/function/invocations" \
+       -H "Content-Type: application/json" \
+       -d '{"input": "こんばんは"}'
+     ```
+   - 期待するレスポンスが返ってくるかを確認してください。
+
+4. **テストの実行**
+   - 開発コンテナ内でテストを走らせる場合
+     ```bash
+     docker compose run --rm lambda pytest
+     ```
+   - ホスト環境で直接テストする場合（PEP 621 形式の依存管理を使用）
+     ```bash
+     pip install .[dev]
+     pytest
+     ```
 
 ### Docker build
 ```bash
@@ -54,19 +81,7 @@ docker build -t snack-misaki-backend .
 docker run -p 9000:8080 snack-misaki-backend
 ```
 
-### イベント送信
-```bash
-curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{"input":"こんばんは"}'
-```
 
-### 依存関係の管理
-
-`requirements.txt` の代わりに [PEP 621](https://peps.python.org/pep-0621/) 形式の `pyproject.toml` で依存関係を管理しています。ローカルでテストを実行する場合は以下を利用してください。
-
-```bash
-pip install .[dev]
-pytest
-```
 
 またはコンテナ環境から実行する場合は次のようにします。
 
