@@ -28,6 +28,50 @@ class LambdaResponse:
         }
 
 
+def _normalise_conversation(payload: Dict[str, Any]) -> Optional[str]:
+    """Return a textual prompt extracted from ``payload`` if possible."""
+
+    if "input" in payload:
+        user_input = payload["input"]
+        if not isinstance(user_input, str):
+            raise ValueError("'input' must be a string")
+        return user_input
+
+    if "conversation" in payload:
+        conversation = payload["conversation"]
+        if isinstance(conversation, str):
+            return conversation
+        if isinstance(conversation, list):
+            if not all(isinstance(item, str) for item in conversation):
+                raise ValueError("'conversation' must be a string or list of strings")
+            return "\n".join(conversation)
+        raise ValueError("'conversation' must be a string or list of strings")
+
+    if "messages" in payload:
+        messages = payload["messages"]
+        if not isinstance(messages, list):
+            raise ValueError("'messages' must be a list")
+
+        compiled: list[str] = []
+        for message in messages:
+            if not isinstance(message, dict):
+                raise ValueError("Each message must be an object")
+            content = message.get("content")
+            if not isinstance(content, str):
+                raise ValueError("Each message requires a string 'content'")
+            role = message.get("role")
+            if isinstance(role, str) and role.strip():
+                compiled.append(f"{role.strip()}: {content}")
+            else:
+                compiled.append(content)
+
+        if compiled:
+            return "\n".join(compiled)
+        raise ValueError("'messages' must contain at least one item")
+
+    return None
+
+
 def parse_event(event: Dict[str, Any]) -> str:
     """Extract the user input from an incoming Lambda ``event``."""
 
@@ -44,14 +88,11 @@ def parse_event(event: Dict[str, Any]) -> str:
     if not isinstance(payload, dict):
         raise ValueError("Event body must be a JSON object")
 
-    user_input = payload.get("input")
-    if user_input is None:
+    conversation = _normalise_conversation(payload)
+    if conversation is None:
         raise ValueError("Missing 'input' field in request body")
 
-    if not isinstance(user_input, str):
-        raise ValueError("'input' must be a string")
-
-    return user_input
+    return conversation
 
 
 def build_success_response(text: str, engine: str) -> LambdaResponse:

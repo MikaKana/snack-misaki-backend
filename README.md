@@ -61,6 +61,20 @@ AWS Lambda (Python 3.11, Docker) をベースに、フロントエンドから�
        -H "Content-Type: application/json" \
        -d '{"input": "こんばんは"}'
      ```
+   - 会話履歴をまとめて送り、ローカル LLM が返答することを確認する例
+     ```bash
+     curl -X POST \
+       "http://localhost:9000/2015-03-31/functions/function/invocations" \
+       -H "Content-Type: application/json" \
+       -d '{
+         "conversation": [
+           "user: こんばんは",
+           "assistant: いらっしゃいませ",
+           "user: 今日のおすすめは？"
+         ]
+       }'
+     ```
+     - `USE_LOCAL_LLM=true` を設定している場合、レスポンス JSON の `engine` が `"local"` となり、会話全体を結合したテキストに対する応答が得られます。
    - 期待するレスポンスが返ってくるかを確認してください。
 
 4. **テストの実行**

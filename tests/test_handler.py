@@ -89,6 +89,40 @@ def test_parse_event_requires_string_input():
         handler.parse_event({"input": 123})
 
 
+def test_lambda_handler_handles_conversation_payload(monkeypatch):
+    os.environ["USE_LOCAL_LLM"] = "true"
+
+    prompts = []
+
+    class RecordingClient:
+        def generate(self, prompt: str) -> str:
+            prompts.append(prompt)
+            return f"echo:{prompt}"
+
+    class RecordingFactory:
+        @classmethod
+        def from_environment(cls):
+            return RecordingClient()
+
+    monkeypatch.setattr("app.router.LocalLLMClient", RecordingFactory)
+
+    payload = {
+        "conversation": [
+            "user: こんばんは",
+            "assistant: いらっしゃいませ",
+            "user: おすすめは？",
+        ]
+    }
+
+    response = invoke({"body": json.dumps(payload)})
+    body = json.loads(response["body"])
+
+    assert response["statusCode"] == 200
+    assert body["engine"] == "local"
+    assert body["response"] == "echo:user: こんばんは\nassistant: いらっしゃいませ\nuser: おすすめは？"
+    assert prompts == ["user: こんばんは\nassistant: いらっしゃいませ\nuser: おすすめは？"]
+
+
 def test_lambda_handler_falls_back_to_external_when_local_fails(monkeypatch):
     os.environ["USE_LOCAL_LLM"] = "true"
 
