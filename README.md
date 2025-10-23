@@ -1,7 +1,7 @@
 # Snack Misaki — Backend
 
 
-※phase1ブランチにて、実装中
+> **Note:** 現在このリポジトリは `phase1` ブランチにて実装中です。
 
 ## 概要
 このリポジトリは **Snack Misaki プロジェクトのバックエンド** です。
@@ -195,6 +195,37 @@ docker compose run --rm --entrypoint "" \
 - **小型 LLM の切替**: llama.cpp / GPT4All を選択可能
 - **外部 API の利用有無**: 環境変数で切替
 - **応答ロジックの変更**: `app/handler.py` を編集
+
+---
+
+## サンプル入出力
+
+| 種別 | 内容 |
+| --- | --- |
+| 入力例 | ```json
+  {
+    "conversation": [
+      { "role": "user", "content": "こんばんは" },
+      { "role": "assistant", "content": "いらっしゃいませ。今日はどうされましたか？" },
+      { "role": "user", "content": "今日のおすすめは？" }
+    ],
+    "metadata": {
+      "channel": "web",
+      "session_id": "example-session-001"
+    }
+  }
+  ``` |
+| 出力例 | ```json
+  {
+    "engine": "local",
+    "message": "今日はフルーティーな梅酒がよく出ています。ロックとソーダ割り、どちらがお好みですか？",
+    "tokens_used": {
+      "prompt": 128,
+      "completion": 42
+    },
+    "latency_ms": 842
+  }
+  ``` |
 
 ---
 
