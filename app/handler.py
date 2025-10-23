@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 
 from .llm.external import from_environment as external_from_env
 from .llm.local import LocalLLMConfigurationError
+from .persona import build_character_prompt
 from .router import LLMRouter
 
 LOGGER = logging.getLogger(__name__)
@@ -109,12 +110,12 @@ def build_error_response(message: str, status: int = 400) -> LambdaResponse:
     )
 
 
-def _attempt_external_fallback(user_input: str) -> Optional[LambdaResponse]:
+def _attempt_external_fallback(prompt: str) -> Optional[LambdaResponse]:
     """Try to generate a response using the external Stage 3 model."""
 
     external_client = external_from_env()
     try:
-        response_text = external_client.generate(user_input)
+        response_text = external_client.generate(prompt)
     except Exception as exc:  # pragma: no cover - network errors handled defensively
         LOGGER.exception("External LLM fallback failed: %s", exc)
         return None
@@ -133,22 +134,24 @@ def lambda_handler(event: Dict[str, Any], context: Optional[Any] = None) -> Dict
         LOGGER.warning("Invalid event: %s", exc)
         return build_error_response(str(exc), status=400).to_dict()
 
+    persona_prompt = build_character_prompt(user_input)
+
     router = LLMRouter()
     routing = router.select(user_input)
 
     try:
-        response_text = routing.client.generate(user_input)
+        response_text = routing.client.generate(persona_prompt)
     except LocalLLMConfigurationError as exc:
         LOGGER.error("Local LLM configuration error: %s", exc)
         if routing.engine == "local":
-            fallback = _attempt_external_fallback(user_input)
+            fallback = _attempt_external_fallback(persona_prompt)
             if fallback is not None:
                 return fallback.to_dict()
         return build_error_response("Failed to generate response", status=500).to_dict()
     except Exception as exc:  # pragma: no cover - defensive fallback
         LOGGER.exception("Failed to generate response: %s", exc)
         if routing.engine == "local":
-            fallback = _attempt_external_fallback(user_input)
+            fallback = _attempt_external_fallback(persona_prompt)
             if fallback is not None:
                 return fallback.to_dict()
         return build_error_response("Failed to generate response", status=500).to_dict()

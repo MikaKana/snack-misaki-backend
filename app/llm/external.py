@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Optional
 from urllib import request
 
+from ..persona import SYSTEM_PROMPT
 from .base import LLMClient
 
 LOGGER = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ class ExternalLLMClient(LLMClient):
             {
                 "model": "gpt-3.5-turbo",
                 "messages": [
-                    {"role": "system", "content": "You are Snack Misaki, a polite bar hostess."},
+                    {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
                 ],
             }

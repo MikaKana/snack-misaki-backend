@@ -9,6 +9,7 @@ import pytest
 from app import handler
 from app.config import Settings
 from app.router import LLMRouter
+from app.persona import build_character_prompt
 from app.llm.local import LocalLLMConfigurationError
 
 
@@ -106,21 +107,22 @@ def test_lambda_handler_handles_conversation_payload(monkeypatch):
 
     monkeypatch.setattr("app.router.LocalLLMClient", RecordingFactory)
 
-    payload = {
-        "conversation": [
-            "user: こんばんは",
-            "assistant: いらっしゃいませ",
-            "user: おすすめは？",
-        ]
-    }
+    conversation_lines = [
+        "user: こんばんは",
+        "assistant: いらっしゃいませ",
+        "user: おすすめは？",
+    ]
+    payload = {"conversation": conversation_lines}
+    conversation_text = "\n".join(conversation_lines)
+    expected_prompt = build_character_prompt(conversation_text)
 
     response = invoke({"body": json.dumps(payload)})
     body = json.loads(response["body"])
 
     assert response["statusCode"] == 200
     assert body["engine"] == "local"
-    assert body["response"] == "echo:user: こんばんは\nassistant: いらっしゃいませ\nuser: おすすめは？"
-    assert prompts == ["user: こんばんは\nassistant: いらっしゃいませ\nuser: おすすめは？"]
+    assert body["response"] == f"echo:{expected_prompt}"
+    assert prompts == [expected_prompt]
 
 
 def test_lambda_handler_falls_back_to_external_when_local_fails(monkeypatch):
