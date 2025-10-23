@@ -60,21 +60,30 @@ def test_llama_cpp_backend_when_selected(tmp_path):
     assert client.generate("おすすめは？") == "llama:おすすめは？:32:0.5"
 
 
-def test_missing_backend_raises_error_when_fallback_disabled():
-    client = LocalLLMClient(model_path=None, backend="gpt4all", allow_fallback=False)
+def test_missing_backend_raises_error_when_backend_unavailable():
+    client = LocalLLMClient(model_path=None, backend="gpt4all")
 
     with pytest.raises(LocalLLMConfigurationError):
         client.generate("今日のおすすめは？")
 
 
-def test_missing_backend_can_use_fallback_when_enabled(monkeypatch):
-    client = LocalLLMClient(model_path=None, backend="gpt4all", allow_fallback=True)
+def test_empty_prompt_raises_error(tmp_path):
+    class FakeLlama:
+        def __init__(self, model_path: str, **kwargs):
+            self.model_path = model_path
 
-    responses = []
-    monkeypatch.setattr(client, "_fallback_response", lambda prompt: responses.append(prompt) or "fallback")
+        def create_completion(self, prompt: str, max_tokens: int, temperature: float):
+            return {"choices": [{"text": "ignored"}]}
 
-    assert client.generate("今日のおすすめは？") == "fallback"
-    assert responses == ["今日のおすすめは？"]
+    sys.modules["llama_cpp"] = types.SimpleNamespace(Llama=FakeLlama)
+
+    model_path = tmp_path / "fake-llama.gguf"
+    model_path.write_text("binary data")
+
+    client = LocalLLMClient(model_path=str(model_path), backend="llama.cpp")
+
+    with pytest.raises(LocalLLMConfigurationError):
+        client.generate("   ")
 
 
 def test_invalid_backend_raises_error():

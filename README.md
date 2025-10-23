@@ -26,7 +26,7 @@ AWS Lambda (Python 3.11, Docker) をベースに、フロントエンドから�
    フロントエンドから送信された入力を Lambda ハンドラで受け取る
 
 2. **小型 LLM 呼び出し (Stage 2)**
-   定型文で処理できない入力を llama.cpp / GPT4All で処理。構成ミスや推論エラーを検知した場合は自動的に Stage 3 の外部 LLM へフォールバックします。
+   入力を llama.cpp / GPT4All で処理。構成ミスや推論エラーを検知した場合は自動的に Stage 3 の外部 LLM へフォールバックします。
 
 3. **外部 API 呼び出し (Stage 3)**  
    小型 LLM で処理困難な入力は外部 LLM API にエスカレーション

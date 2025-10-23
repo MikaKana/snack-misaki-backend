@@ -4,10 +4,9 @@ from __future__ import annotations
 import importlib
 import logging
 import os
-import random
 import threading
 from dataclasses import dataclass, field
-from typing import ClassVar, Dict, Iterable, Optional, Tuple
+from typing import ClassVar, Dict, Optional, Tuple
 
 from .base import LLMClient
 
@@ -52,27 +51,14 @@ def _coerce_int(value: Optional[str], default: int) -> int:
         return default
 
 
-def _coerce_bool(value: Optional[str], default: bool = False) -> bool:
-    if value is None:
-        return default
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-
 @dataclass
 class LocalLLMClient(LLMClient):
-    """Production-ready wrapper around llama.cpp / GPT4All with optional fallback."""
+    """Production-ready wrapper around llama.cpp / GPT4All."""
 
     model_path: Optional[str] = None
     backend: Optional[str] = None
     max_tokens: int = 256
     temperature: float = 0.7
-    allow_fallback: bool = False
-    canned_responses: Iterable[str] = (
-        "はい、かしこまりました！",
-        "承知いたしました。",
-        "少々お待ちくださいませ。",
-        "本日のおすすめは『みさきスペシャル』です。",
-    )
     _model: Optional[object] = field(default=None, init=False, repr=False)
     _backend_name: Optional[str] = field(default=None, init=False, repr=False)
 
@@ -87,18 +73,18 @@ class LocalLLMClient(LLMClient):
         model_path = os.getenv("LOCAL_LLM_MODEL")
         max_tokens = _coerce_int(os.getenv("LOCAL_LLM_MAX_TOKENS"), default=256)
         temperature = _coerce_temperature(os.getenv("LOCAL_LLM_TEMPERATURE"), default=0.7)
-        allow_fallback = _coerce_bool(os.getenv("LOCAL_LLM_ALLOW_FALLBACK"), default=False)
         return cls(
             backend=backend,
             model_path=model_path,
             max_tokens=max_tokens,
             temperature=temperature,
-            allow_fallback=allow_fallback,
         )
 
     # The backend detection is split out to make unit testing easier.
-    def _ensure_backend(self) -> Optional[str]:
+    def _ensure_backend(self) -> str:
         if self._model is not None:
+            if self._backend_name is None:
+                raise LocalLLMConfigurationError("Local LLM backend could not be determined")
             return self._backend_name
 
         backend = (self.backend or "auto").lower()
@@ -132,10 +118,11 @@ class LocalLLMClient(LLMClient):
                 message += f" (attempted: {', '.join(attempted)})"
             if last_error is not None:
                 message += f": {last_error}"
-            if self.allow_fallback:
-                LOGGER.warning("%s; using canned fallback responses", message)
-                return None
             raise LocalLLMConfigurationError(message)
+
+        # ``_backend_name`` is set whenever ``_model`` is initialised.
+        if self._backend_name is None:
+            raise LocalLLMConfigurationError("Local LLM backend could not be determined")
 
         return self._backend_name
 
@@ -199,21 +186,12 @@ class LocalLLMClient(LLMClient):
         except Exception as exc:  # pragma: no cover - relies on third party library
             raise LocalLLMConfigurationError("Failed to initialise llama.cpp") from exc
 
-    def _fallback_response(self, prompt: str) -> str:
-        if any(keyword in prompt for keyword in ("ありがとう", "感謝")):
-            return "こちらこそ、ありがとうございます！"
-        if any(keyword in prompt for keyword in ("おすすめ", "何がいい")):
-            return "みさき特製カクテルはいかがでしょうか？"
-        return random.choice(tuple(self.canned_responses))
-
     def generate(self, prompt: str) -> str:
         prompt = prompt.strip()
         if not prompt:
-            return "ご注文はお決まりでしょうか？"
+            raise LocalLLMConfigurationError("Prompt must not be empty")
 
         backend = self._ensure_backend()
-        if backend is None:
-            return self._fallback_response(prompt)
 
         if backend == "gpt4all":
             # The GPT4All API exposes ``generate`` with ``temp`` instead of ``temperature``.
@@ -221,14 +199,10 @@ class LocalLLMClient(LLMClient):
                 response = self._model.generate(prompt, max_tokens=self.max_tokens, temp=self.temperature)
             except Exception as exc:  # pragma: no cover - third party behaviour
                 LOGGER.exception("GPT4All generation failed: %s", exc)
-                if self.allow_fallback:
-                    return self._fallback_response(prompt)
                 raise LocalLLMConfigurationError("GPT4All generation failed") from exc
             text = str(response).strip()
             if text:
                 return text
-            if self.allow_fallback:
-                return self._fallback_response(prompt)
             raise LocalLLMConfigurationError("GPT4All returned an empty response")
 
         if backend == "llama.cpp":
@@ -241,14 +215,10 @@ class LocalLLMClient(LLMClient):
                 text = completion["choices"][0]["text"]
             except (KeyError, IndexError, TypeError):  # pragma: no cover - defensive programming
                 LOGGER.warning("Unexpected llama.cpp response format: %s", completion)
-                if self.allow_fallback:
-                    return self._fallback_response(prompt)
                 raise LocalLLMConfigurationError("llama.cpp response format invalid")
             text = str(text).strip()
             if text:
                 return text
-            if self.allow_fallback:
-                return self._fallback_response(prompt)
             raise LocalLLMConfigurationError("llama.cpp returned an empty response")
 
         raise LocalLLMConfigurationError(f"Unsupported backend selected: {backend}")
