@@ -1,11 +1,14 @@
 # Snack Misaki — Backend
 
+
+> **Note:** 現在このリポジトリは `phase1` ブランチにて実装中です。
+
 ## 概要
-このリポジトリは **Snack Misaki プロジェクトのバックエンド** です。  
+このリポジトリは **Snack Misaki プロジェクトのバックエンド** です。
 AWS Lambda (Python 3.11, Docker) をベースに、フロントエンドからの入力を処理し、  
 小型 LLM や外部 LLM API を用いて応答を生成します。
 
-- **Stage 2**: フロントエンドと連携し、小型 LLM (llama.cpp / GPT4All) で応答
+- **Stage 2**: フロントエンドと連携し、小型 LLM (llama.cpp / GPT4All) で応答。Lambda 起動ごとにモデルを再利用するキャッシュ機構を備え、本番環境でも安定して動作します。
 - **Stage 3**: 外部 LLM API (OpenAI / Bedrock / HuggingFace) と連携し高度な応答を実現
 
 ---
@@ -22,8 +25,8 @@ AWS Lambda (Python 3.11, Docker) をベースに、フロントエンドから�
 1. **イベント受信**  
    フロントエンドから送信された入力を Lambda ハンドラで受け取る
 
-2. **小型 LLM 呼び出し (Stage 2)**  
-   定型文で処理できない入力を llama.cpp / GPT4All で処理
+2. **小型 LLM 呼び出し (Stage 2)**
+   入力を llama.cpp / GPT4All で処理。構成ミスや推論エラーを検知した場合は自動的に Stage 3 の外部 LLM へフォールバックします。
 
 3. **外部 API 呼び出し (Stage 3)**  
    小型 LLM で処理困難な入力は外部 LLM API にエスカレーション
@@ -34,6 +37,79 @@ AWS Lambda (Python 3.11, Docker) をベースに、フロントエンドから�
 ---
 
 ## 実行方法（ローカル）
+### Docker Compose (推奨)
+
+開発時は Docker Compose で Lambda 互換の実行環境を立ち上げられます。
+
+1. **初回セットアップ**
+   ```bash
+   docker compose up --build
+   ```
+   - `--build` を付けると依存パッケージを含むコンテナイメージが再構築されます。
+   - バックエンドは `localhost:9000` (Lambda RIE の既定ポート) で待ち受けます。
+
+2. **コード修正の反映**
+   - ホストで変更したコードはコンテナにマウントされるため、コンテナを再起動しなくても即座に反映されます。
+   - バックエンドのログは `docker compose logs -f` で確認できます。
+
+3. **イベント送信（動作確認）**
+   - Lambda RIE では [Invoke エンドポイント](https://docs.aws.amazon.com/ja_jp/lambda/latest/dg/images-test.html) に対してリクエストを送ります。
+   - 例: `curl` で JSON ペイロードを送信する
+     ```bash
+     curl -X POST \
+       "http://localhost:9000/2015-03-31/functions/function/invocations" \
+       -H "Content-Type: application/json" \
+       -d '{"input": "こんばんは"}'
+     ```
+   - 会話履歴をまとめて送り、ローカル LLM が返答することを確認する例
+     ```bash
+     curl -X POST \
+       "http://localhost:9000/2015-03-31/functions/function/invocations" \
+       -H "Content-Type: application/json" \
+       -d '{
+         "conversation": [
+           "user: こんばんは",
+           "assistant: いらっしゃいませ",
+           "user: 今日のおすすめは？"
+         ]
+       }'
+     ```
+     - `USE_LOCAL_LLM=true` を設定している場合、レスポンス JSON の `engine` が `"local"` となり、会話全体を結合したテキストに対する応答が得られます。
+   - 期待するレスポンスが返ってくるかを確認してください。
+
+4. **テストの実行**
+   - 開発コンテナ内でテストを走らせる場合（Lambda ランタイムのエントリポイントを無効化して pytest を実行）
+     ```bash
+     docker compose run --rm --entrypoint "" lambda python -m pytest
+     ```
+   - ホスト環境で直接テストする場合（PEP 621 形式の依存管理を使用）
+     ```bash
+     pip install .[dev]
+     pytest
+     ```
+
+5. **Lint の実行**
+   - 開発コンテナ内で実行する場合
+     ```bash
+     docker compose run --rm --entrypoint "" lambda python -m ruff check .
+     ```
+   - ホスト環境で直接実行する場合
+     ```bash
+     pip install .[dev]
+     ruff check .
+     ```
+
+6. **自動整形（フォーマッタ）の実行**
+   - 開発コンテナ内で実行する場合
+     ```bash
+     docker compose run --rm --entrypoint "" lambda python -m ruff format
+     ```
+   - ホスト環境で直接実行する場合
+     ```bash
+     pip install .[dev]
+     ruff format
+     ```
+
 ### Docker build
 ```bash
 docker build -t snack-misaki-backend .
@@ -43,18 +119,72 @@ docker build -t snack-misaki-backend .
 ```bash
 docker run -p 9000:8080 snack-misaki-backend
 ```
+---
 
-### イベント送信
+## ローカル LLM (TinyLlama) 導入手順
+AWS Lambda 上でも扱える軽量モデルとして、**TinyLlama-1.1B-Chat** の 4bit 量子化版（GGUF）を想定しています。モデルは Apache-2.0 ライセンスで提供されており、商用利用も可能です。量子化ファイルはおよそ 350 MB 程度で、Lambda のデプロイパッケージやレイヤーにも収まります。
+
+### 1. llama.cpp バックエンドの用意
 ```bash
-curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{"input":"こんばんは"}'
+git clone https://github.com/ggerganov/llama.cpp.git
+cd llama.cpp
+cmake -B build
+cmake --build build --config Release
 ```
 
+- macOS では `cmake -B build -DGGML_METAL=ON` など、環境に応じたオプションを追加してください。
+- ビルド後に生成されるバイナリ (`./build/bin/llama-cli` など) を Lambda ランタイムに同梱するか、ホストマシンの実行パスに追加します。
+
+### 2. TinyLlama GGUF モデルの取得
+```bash
+pip install --upgrade huggingface_hub
+huggingface-cli download --local-dir models/tinyllama \
+  TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+  tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+```
+
+- `models/tinyllama` 直下に `tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf` が配置されます。Lambda に同梱する場合は `zip` などで圧縮し、デプロイパッケージまたはレイヤーに含めてください。
+- 他の量子化レベル（`Q2_K` など）を使用するとさらにサイズを削減できますが、出力品質が低下する場合があります。
+
+### 3. 環境変数の設定
+`.env` もしくは Lambda の環境変数で次の値を指定します。
+
+```env
+USE_LOCAL_LLM=true
+LOCAL_LLM_BACKEND=llama.cpp
+LOCAL_LLM_MODEL=/var/task/models/tinyllama/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+LOCAL_LLM_MAX_TOKENS=256
+LOCAL_LLM_TEMPERATURE=0.7
+```
+
+- `LOCAL_LLM_MODEL` には Lambda 実行環境から参照可能なモデルファイルの絶対パスを指定してください。`/var/task` はデプロイパッケージ、`/opt` はレイヤーを指します。
+- `LOCAL_LLM_MAX_TOKENS` などのパラメータは、ユースケースに合わせて調整できます。
+
+### 4. 動作確認
+開発用コンテナ、または Lambda 実行環境で以下のようにテストできます。
+
+```bash
+docker compose run --rm --entrypoint "" \
+  -v "$PWD/models":/var/task/models \
+  lambda python -m pytest tests/test_local_llm.py
+```
+
+- 上記例では `models` ディレクトリをコンテナへマウントしてローカル推論を有効化しています。
+- Lambda へデプロイする際は、ビルド済みの `llama.cpp` バイナリと GGUF モデルを同梱し、`USE_LOCAL_LLM=true` を設定してください。
+
 ---
+
+
 
 ## 環境変数
 `.env` または AWS Lambda の環境変数で設定します。
 
 - `USE_LOCAL_LLM` : true の場合、小型 LLM (llama.cpp / GPT4All) を利用
+- `LOCAL_LLM_BACKEND` : `gpt4all` / `llama.cpp` など利用するバックエンド (`auto` の場合は自動検出)
+- `LOCAL_LLM_MODEL` : ローカル推論に利用するモデルファイル (GGUF/GPT4All)
+- `LOCAL_LLM_MAX_TOKENS` : ローカルモデルの最大生成トークン数 (省略可、デフォルト256)
+- `LOCAL_LLM_TEMPERATURE` : 生成時の温度パラメータ (省略可、デフォルト0.7)
+- `LOCAL_LLM_ALLOW_FALLBACK` : true の場合のみ、ローカル LLM が利用できない際に定型文へフォールバック (デフォルト false)
 - `OPENAI_API_KEY` : OpenAI API キー
 - `BEDROCK_CREDENTIALS` : AWS Bedrock 用の認証情報
 - `HUGGINGFACE_TOKEN` : HuggingFace Hub 用の認証トークン
@@ -65,6 +195,37 @@ curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" -d
 - **小型 LLM の切替**: llama.cpp / GPT4All を選択可能
 - **外部 API の利用有無**: 環境変数で切替
 - **応答ロジックの変更**: `app/handler.py` を編集
+
+---
+
+## サンプル入出力
+
+| 種別 | 内容 |
+| --- | --- |
+| 入力例 | ```json
+  {
+    "conversation": [
+      { "role": "user", "content": "こんばんは" },
+      { "role": "assistant", "content": "いらっしゃいませ。今日はどうされましたか？" },
+      { "role": "user", "content": "今日のおすすめは？" }
+    ],
+    "metadata": {
+      "channel": "web",
+      "session_id": "example-session-001"
+    }
+  }
+  ``` |
+| 出力例 | ```json
+  {
+    "engine": "local",
+    "message": "今日はフルーティーな梅酒がよく出ています。ロックとソーダ割り、どちらがお好みですか？",
+    "tokens_used": {
+      "prompt": 128,
+      "completion": 42
+    },
+    "latency_ms": 842
+  }
+  ``` |
 
 ---
 
