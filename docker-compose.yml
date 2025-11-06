@@ -16,4 +16,4 @@ services:
       - ./README.md:/app/README.md:ro
       - ./LICENSE:/app/LICENSE:ro
       - ./models:/app/models:ro
-    command: ["python3", "-m", "awslambdaric", "app.handler.lambda_handler"]
+    command: ["/usr/local/bin/aws-lambda-rie", "python3", "-m", "awslambdaric", "app.handler.lambda_handler"]
