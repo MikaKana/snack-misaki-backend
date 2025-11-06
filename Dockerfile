@@ -13,6 +13,8 @@ RUN apt-get update \
         build-essential \
         cmake \
         pkg-config \
+        gnupg \
+        libcurl4-openssl-dev \
     && add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -24,6 +26,8 @@ RUN apt-get update \
     && ln -sf /usr/bin/python3.11 /usr/bin/python3 \
     && ln -sf /usr/bin/python3.11 /usr/bin/python \
     && python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && curl -Lo /usr/local/bin/aws-lambda-rie "https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie" \
+    && chmod +x /usr/local/bin/aws-lambda-rie \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -75,4 +79,4 @@ COPY LICENSE /app/LICENSE
 ENV PYTHONPATH="/opt/python:/app:${PYTHONPATH}"
 ENV PATH="/app/llama.cpp/build/bin:${PATH}"
 
-CMD ["python3", "-m", "awslambdaric", "app.handler.lambda_handler"]
+CMD ["/usr/local/bin/aws-lambda-rie", "python3", "-m", "awslambdaric", "app.handler.lambda_handler"]

@@ -141,13 +141,23 @@ AWS Lambda 上でも扱える軽量モデルとして、**TinyLlama-1.1B-Chat** 
 
 ### 1. TinyLlama GGUF モデルの取得
 ```bash
+# 例: docker compose run --rm --entrypoint "" lambda bash
 pip install --upgrade huggingface_hub
-huggingface-cli download --local-dir models \
-  TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
-  tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+python - <<'EOF'
+from huggingface_hub import hf_hub_download
+
+hf_hub_download(
+    repo_id="TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF",
+    filename="tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
+    local_dir="/tmp/models",
+)
+EOF
+mkdir -p models
+cp /tmp/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf models/
 ```
 
-- `models/` 直下に `tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf` を配置すると、Docker コンテナ起動時に `/app/models` へマウントされます。
+- `/tmp/models` にダウンロードされたファイルを `models/` 直下へコピーすると、Docker コンテナ起動時に `/app/models` へマウントされます。
+- Python API (`hf_hub_download`) を利用することで、`huggingface-cli` のバージョン差異やシェル環境の違いに依存せずに取得できます。
 - 他の量子化レベル（`Q2_K` など）を使用するとさらにサイズを削減できますが、出力品質が低下する場合があります。
 
 ### 2. 環境変数の設定

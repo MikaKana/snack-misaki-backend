@@ -15,5 +15,5 @@ services:
       - ./pyproject.toml:/app/pyproject.toml:ro
       - ./README.md:/app/README.md:ro
       - ./LICENSE:/app/LICENSE:ro
-      - ./models:/app/models:ro
-    command: ["python3", "-m", "awslambdaric", "app.handler.lambda_handler"]
+      - ./models:/app/models
+    command: ["/usr/local/bin/aws-lambda-rie", "python3", "-m", "awslambdaric", "app.handler.lambda_handler"]
