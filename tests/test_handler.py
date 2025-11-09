@@ -33,6 +33,13 @@ def invoke(event: Dict[str, object]):
     return handler.lambda_handler(event, DummyContext())
 
 
+def get_body(response: Dict[str, object]):
+    body = response["body"]
+    if isinstance(body, str):
+        return json.loads(body)
+    return body
+
+
 def test_lambda_handler_with_valid_input_uses_local_by_default(monkeypatch):
     os.environ["USE_LOCAL_LLM"] = "true"
     class StubLocalClient:
@@ -48,7 +55,7 @@ def test_lambda_handler_with_valid_input_uses_local_by_default(monkeypatch):
 
     event = {"input": "こんばんは"}
     response = invoke(event)
-    body = response["body"]
+    body = get_body(response)
     assert response["statusCode"] == 200
     assert body["engine"] == "local"
     assert body["response"] == "ローカル応答"
@@ -58,7 +65,7 @@ def test_lambda_handler_invalid_json_body():
     event = {"body": "{invalid"}
     response = invoke(event)
     assert response["statusCode"] == 400
-    body = response["body"]
+    body = get_body(response)
     assert body["error"] == "Invalid JSON body"
 
 
@@ -66,7 +73,7 @@ def test_lambda_handler_missing_input():
     event = {"body": json.dumps({"message": "hi"})}
     response = invoke(event)
     assert response["statusCode"] == 400
-    body = response["body"]
+    body = get_body(response)
     assert body["error"] == "Missing 'input' field in request body"
 
 
@@ -121,7 +128,7 @@ def test_lambda_handler_handles_conversation_payload(monkeypatch):
     expected_prompt = build_character_prompt(conversation_text)
 
     response = invoke({"body": json.dumps(payload)})
-    body = response["body"]
+    body = get_body(response)
 
     assert response["statusCode"] == 200
     assert body["engine"] == "local"
@@ -149,7 +156,7 @@ def test_lambda_handler_falls_back_to_external_when_local_fails(monkeypatch):
     monkeypatch.setattr(handler, "_attempt_external_fallback", fake_fallback)
 
     response = invoke({"input": "おすすめは？"})
-    body = response["body"]
+    body = get_body(response)
     assert response["statusCode"] == 200
     assert body["engine"] == "external"
     assert body["response"] == "外部応答"
@@ -175,7 +182,7 @@ def test_lambda_handler_missing_llama_cli_falls_back_to_local(monkeypatch):
     monkeypatch.setattr(handler.subprocess, "run", fake_run)
 
     response = invoke({"input": "こんばんは"})
-    body = response["body"]
+    body = get_body(response)
 
     assert response["statusCode"] == 200
     assert body["engine"] == "local"
@@ -203,7 +210,7 @@ def test_lambda_handler_invokes_llama_cli(monkeypatch):
     monkeypatch.setattr(handler.subprocess, "run", fake_run)
 
     response = invoke({"input": "こんばんは"})
-    body = response["body"]
+    body = get_body(response)
 
     assert response["statusCode"] == 200
     assert body["engine"] == "llama.cpp"
@@ -225,7 +232,7 @@ def test_lambda_handler_returns_error_when_llama_cli_fails(monkeypatch):
     monkeypatch.setattr(handler.subprocess, "run", fake_run)
 
     response = invoke({"input": "失敗テスト"})
-    body = response["body"]
+    body = get_body(response)
 
     assert response["statusCode"] == 500
     assert "error" in body

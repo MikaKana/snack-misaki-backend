@@ -116,7 +116,10 @@ class LambdaResponse:
         """
 
         if stringify_body:
-            body_content: Any = json.dumps(self.body, ensure_ascii=False)
+            if isinstance(self.body, str):
+                body_content = self.body
+            else:
+                body_content = json.dumps(self.body, ensure_ascii=False)
         else:
             body_content = self.body
 
@@ -125,6 +128,23 @@ class LambdaResponse:
             "headers": {"Content-Type": "application/json; charset=utf-8"},
             "body": body_content,
         }
+
+
+def _should_stringify_response_body(event: Dict[str, Any]) -> bool:
+    """Return ``True`` when the Lambda response body should be JSON strings."""
+
+    body = event.get("body")
+    if isinstance(body, (str, bytes)):
+        return True
+    if body is None and "requestContext" in event:
+        return True
+    return False
+
+
+def _finalize_lambda_response(response: LambdaResponse, event: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert ``response`` into a mapping suitable for the AWS Lambda runtime."""
+
+    return response.to_dict(stringify_body=_should_stringify_response_body(event))
 
 
 def _normalise_conversation(payload: Dict[str, Any]) -> Optional[str]:
@@ -230,7 +250,7 @@ def lambda_handler(event: Dict[str, Any], context: Optional[Any] = None) -> Dict
         user_input = parse_event(event)
     except ValueError as exc:
         LOGGER.warning("Invalid event: %s", exc)
-        return build_error_response(str(exc), status=400).to_dict()
+        return _finalize_lambda_response(build_error_response(str(exc), status=400), event)
 
     persona_prompt = build_character_prompt(user_input)
 
@@ -241,12 +261,18 @@ def lambda_handler(event: Dict[str, Any], context: Optional[Any] = None) -> Dict
             LOGGER.warning("llama-cli binary missing, falling back to Python client: %s", exc)
         except Exception as exc:
             LOGGER.exception("llama-cli invocation failed: %s", exc)
-            return LambdaResponse(
-                status_code=500,
-                body={"error": str(exc)},
-            ).to_dict()
+            return _finalize_lambda_response(
+                LambdaResponse(
+                    status_code=500,
+                    body={"error": str(exc)},
+                ),
+                event,
+            )
         else:
-            return build_success_response(response_text, "llama.cpp").to_dict()
+            return _finalize_lambda_response(
+                build_success_response(response_text, "llama.cpp"),
+                event,
+            )
 
     router = LLMRouter()
     routing = router.select(user_input)
@@ -258,18 +284,26 @@ def lambda_handler(event: Dict[str, Any], context: Optional[Any] = None) -> Dict
         if routing.engine == "local":
             fallback = _attempt_external_fallback(persona_prompt)
             if fallback is not None:
-                return fallback.to_dict()
-        return build_error_response("Failed to generate response", status=500).to_dict()
+                return _finalize_lambda_response(fallback, event)
+            return _finalize_lambda_response(
+                build_error_response("Failed to generate response", status=500),
+                event,
+            )
     except Exception as exc:  # pragma: no cover - defensive fallback
         LOGGER.exception("Failed to generate response: %s", exc)
         if routing.engine == "local":
             fallback = _attempt_external_fallback(persona_prompt)
             if fallback is not None:
-                return fallback.to_dict()
-        return build_error_response("Failed to generate response", status=500).to_dict()
+                return _finalize_lambda_response(fallback, event)
+            return _finalize_lambda_response(
+                build_error_response("Failed to generate response", status=500),
+                event,
+            )
 
-    return build_success_response(response_text, routing.engine).to_dict()
-
+            return _finalize_lambda_response(
+                build_success_response(response_text, routing.engine),
+                event,
+            )
 
 __all__ = [
     "LambdaResponse",
