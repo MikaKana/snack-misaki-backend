@@ -6,7 +6,7 @@ from typing import Optional
 
 from .config import Settings
 from .llm.base import LLMClient, SupportsGenerate
-from .llm.external import ExternalLLMClient, from_environment as external_from_env
+from .llm.external import from_environment as external_from_env
 from .llm.local import LocalLLMClient
 
 

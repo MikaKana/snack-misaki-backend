@@ -9,9 +9,9 @@ import pytest
 
 from app import handler
 from app.config import Settings
-from app.router import LLMRouter
-from app.persona import build_character_prompt
 from app.llm.local import LocalLLMConfigurationError
+from app.persona import build_character_prompt
+from app.router import LLMRouter
 
 
 class DummyContext:

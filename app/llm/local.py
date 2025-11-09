@@ -162,7 +162,10 @@ class LocalLLMClient(LLMClient):
             raise LocalLLMConfigurationError(f"GPT4All model not found at {model_path}")
 
         try:
-            return module.GPT4All(model_name=os.path.basename(model_path), model_path=os.path.dirname(model_path) or None)
+            return module.GPT4All(
+                model_name=os.path.basename(model_path),
+                model_path=os.path.dirname(model_path) or None,
+            )
         except Exception as exc:  # pragma: no cover - relies on third party library
             raise LocalLLMConfigurationError("Failed to initialise GPT4All") from exc
 
