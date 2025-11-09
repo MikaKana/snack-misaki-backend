@@ -40,6 +40,23 @@ def get_body(response: Dict[str, object]):
     return body
 
 
+def test_finalize_lambda_response_keeps_dict_for_direct_invocations():
+    response = handler.build_success_response("テスト", "local")
+    result = handler._finalize_lambda_response(response, {"body": json.dumps({"input": "hi"})})
+    assert isinstance(result["body"], dict)
+
+
+def test_finalize_lambda_response_stringifies_for_apigw_events():
+    response = handler.build_success_response("テスト", "local")
+    event = {
+        "body": json.dumps({"input": "hi"}),
+        "requestContext": {"accountId": "123456789012"},
+    }
+    result = handler._finalize_lambda_response(response, event)
+    assert isinstance(result["body"], str)
+    assert json.loads(result["body"]) == {"response": "テスト", "engine": "local"}
+
+
 def test_lambda_handler_with_valid_input_uses_local_by_default(monkeypatch):
     os.environ["USE_LOCAL_LLM"] = "true"
     class StubLocalClient:

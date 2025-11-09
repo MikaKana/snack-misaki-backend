@@ -130,14 +130,38 @@ class LambdaResponse:
         }
 
 
+def _looks_like_apigw_event(event: Dict[str, Any]) -> bool:
+    """Return ``True`` when ``event`` resembles an API Gateway payload."""
+
+    if not isinstance(event, dict):
+        return False
+
+    if "requestContext" in event:
+        return True
+
+    if event.get("version") in {"1.0", "2.0"}:
+        return True
+
+    if "resource" in event and "httpMethod" in event:
+        return True
+
+    return False
+
+
 def _should_stringify_response_body(event: Dict[str, Any]) -> bool:
     """Return ``True`` when the Lambda response body should be JSON strings."""
 
     body = event.get("body")
+
+    if not _looks_like_apigw_event(event):
+        return False
+
     if isinstance(body, (str, bytes)):
         return True
-    if body is None and "requestContext" in event:
+
+    if body is None:
         return True
+
     return False
 
 
