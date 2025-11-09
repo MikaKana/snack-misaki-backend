@@ -151,6 +151,34 @@ def test_lambda_handler_falls_back_to_external_when_local_fails(monkeypatch):
     assert body["engine"] == "external"
     assert body["response"] == "外部応答"
 
+def test_lambda_handler_missing_llama_cli_falls_back_to_local(monkeypatch):
+    os.environ["USE_LOCAL_LLM"] = "true"
+    os.environ["LOCAL_LLM_BACKEND"] = "llama.cpp"
+
+    class StubLocalClient:
+        def generate(self, prompt: str) -> str:
+            return "ローカル応答"
+
+    class StubFactory:
+        @classmethod
+        def from_environment(cls):
+            return StubLocalClient()
+
+    monkeypatch.setattr("app.router.LocalLLMClient", StubFactory)
+
+    def fake_run(command, capture_output, text, check):
+        raise FileNotFoundError("llama-cli missing")
+
+    monkeypatch.setattr(handler.subprocess, "run", fake_run)
+
+    response = invoke({"input": "こんばんは"})
+    body = json.loads(response["body"])
+
+    assert response["statusCode"] == 200
+    assert body["engine"] == "local"
+    assert body["response"] == "ローカル応答"
+
+
 
 def test_lambda_handler_invokes_llama_cli(monkeypatch):
     os.environ["USE_LOCAL_LLM"] = "true"

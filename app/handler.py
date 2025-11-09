@@ -209,13 +209,16 @@ def lambda_handler(event: Dict[str, Any], context: Optional[Any] = None) -> Dict
     if _should_use_llama_cli():
         try:
             response_text = _run_llama_cli(persona_prompt)
+        except FileNotFoundError as exc:
+            LOGGER.warning("llama-cli binary missing, falling back to Python client: %s", exc)
         except Exception as exc:
             LOGGER.exception("llama-cli invocation failed: %s", exc)
             return LambdaResponse(
                 status_code=500,
                 body={"error": str(exc)},
             ).to_dict()
-        return build_success_response(response_text, "llama.cpp").to_dict()
+        else:
+            return build_success_response(response_text, "llama.cpp").to_dict()
 
     router = LLMRouter()
     routing = router.select(user_input)
