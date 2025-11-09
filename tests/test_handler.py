@@ -21,6 +21,9 @@ class DummyContext:
 @pytest.fixture(autouse=True)
 def cleanup_env():
     environ_snapshot = os.environ.copy()
+    for key in list(os.environ):
+        if key.startswith("LOCAL_LLM_"):
+            os.environ.pop(key, None)
     yield
     os.environ.clear()
     os.environ.update(environ_snapshot)

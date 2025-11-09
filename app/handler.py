@@ -77,11 +77,22 @@ def _run_llama_cli(prompt: str) -> str:
 
     LOGGER.debug("Invoking llama-cli: %s", command)
 
-    result = subprocess.run(command, capture_output=True, text=True, check=True)
-    output = result.stdout.strip()
-    if not output:
+    result = subprocess.run(command, capture_output=True, text=False, check=True)
+    output_data = result.stdout
+    if not output_data:
         raise RuntimeError("llama-cli returned an empty response")
-    return output
+
+    if isinstance(output_data, bytes):
+        try:
+            output = output_data.decode("utf-8")
+        except UnicodeDecodeError:
+            LOGGER.warning("llama-cli emitted non-UTF-8 output; characters will be replaced")
+            output = output_data.decode("utf-8", errors="replace")
+    else:
+        output = str(output_data)
+
+    return output.strip()
+
 
 
 @dataclass
