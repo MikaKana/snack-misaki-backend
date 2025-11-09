@@ -295,15 +295,15 @@ def lambda_handler(event: Dict[str, Any], context: Optional[Any] = None) -> Dict
             fallback = _attempt_external_fallback(persona_prompt)
             if fallback is not None:
                 return _finalize_lambda_response(fallback, event)
-            return _finalize_lambda_response(
-                build_error_response("Failed to generate response", status=500),
-                event,
-            )
+        return _finalize_lambda_response(
+            build_error_response("Failed to generate response", status=500),
+            event,
+        )
 
-            return _finalize_lambda_response(
-                build_success_response(response_text, routing.engine),
-                event,
-            )
+    return _finalize_lambda_response(
+        build_success_response(response_text, routing.engine),
+        event,
+    )
 
 __all__ = [
     "LambdaResponse",
