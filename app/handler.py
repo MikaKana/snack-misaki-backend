@@ -102,11 +102,28 @@ class LambdaResponse:
     status_code: int
     body: Dict[str, Any]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self, *, stringify_body: bool = False) -> Dict[str, Any]:
+        """Return a mapping that can be returned from the Lambda handler.
+
+        Parameters
+        ----------
+        stringify_body:
+            When ``True`` the ``body`` is JSON-encoded to a string. This is the
+            format expected by API Gateway's Lambda proxy integration. When
+            ``False`` the ``body`` is returned as a dictionary, which is useful
+            when invoking the Lambda function directly (``Invoke`` API) where
+            the payload should only be JSON-encoded once.
+        """
+
+        if stringify_body:
+            body_content: Any = json.dumps(self.body, ensure_ascii=False)
+        else:
+            body_content = self.body
+
         return {
             "statusCode": self.status_code,
             "headers": {"Content-Type": "application/json; charset=utf-8"},
-            "body": json.dumps(self.body, ensure_ascii=False),
+            "body": body_content,
         }
 
 
