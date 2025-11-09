@@ -9,9 +9,9 @@ import pytest
 
 from app import handler
 from app.config import Settings
-from app.router import LLMRouter
-from app.persona import build_character_prompt
 from app.llm.local import LocalLLMConfigurationError
+from app.persona import build_character_prompt
+from app.router import LLMRouter
 
 
 class DummyContext:
@@ -21,6 +21,9 @@ class DummyContext:
 @pytest.fixture(autouse=True)
 def cleanup_env():
     environ_snapshot = os.environ.copy()
+    for key in list(os.environ):
+        if key.startswith("LOCAL_LLM_"):
+            os.environ.pop(key, None)
     yield
     os.environ.clear()
     os.environ.update(environ_snapshot)
@@ -150,6 +153,34 @@ def test_lambda_handler_falls_back_to_external_when_local_fails(monkeypatch):
     assert response["statusCode"] == 200
     assert body["engine"] == "external"
     assert body["response"] == "外部応答"
+
+def test_lambda_handler_missing_llama_cli_falls_back_to_local(monkeypatch):
+    os.environ["USE_LOCAL_LLM"] = "true"
+    os.environ["LOCAL_LLM_BACKEND"] = "llama.cpp"
+
+    class StubLocalClient:
+        def generate(self, prompt: str) -> str:
+            return "ローカル応答"
+
+    class StubFactory:
+        @classmethod
+        def from_environment(cls):
+            return StubLocalClient()
+
+    monkeypatch.setattr("app.router.LocalLLMClient", StubFactory)
+
+    def fake_run(command, capture_output, text, check):
+        raise FileNotFoundError("llama-cli missing")
+
+    monkeypatch.setattr(handler.subprocess, "run", fake_run)
+
+    response = invoke({"input": "こんばんは"})
+    body = json.loads(response["body"])
+
+    assert response["statusCode"] == 200
+    assert body["engine"] == "local"
+    assert body["response"] == "ローカル応答"
+
 
 
 def test_lambda_handler_invokes_llama_cli(monkeypatch):

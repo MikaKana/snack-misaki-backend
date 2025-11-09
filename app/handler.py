@@ -77,11 +77,22 @@ def _run_llama_cli(prompt: str) -> str:
 
     LOGGER.debug("Invoking llama-cli: %s", command)
 
-    result = subprocess.run(command, capture_output=True, text=True, check=True)
-    output = result.stdout.strip()
-    if not output:
+    result = subprocess.run(command, capture_output=True, text=False, check=True)
+    output_data = result.stdout
+    if not output_data:
         raise RuntimeError("llama-cli returned an empty response")
-    return output
+
+    if isinstance(output_data, bytes):
+        try:
+            output = output_data.decode("utf-8")
+        except UnicodeDecodeError:
+            LOGGER.warning("llama-cli emitted non-UTF-8 output; characters will be replaced")
+            output = output_data.decode("utf-8", errors="replace")
+    else:
+        output = str(output_data)
+
+    return output.strip()
+
 
 
 @dataclass
@@ -209,13 +220,16 @@ def lambda_handler(event: Dict[str, Any], context: Optional[Any] = None) -> Dict
     if _should_use_llama_cli():
         try:
             response_text = _run_llama_cli(persona_prompt)
+        except FileNotFoundError as exc:
+            LOGGER.warning("llama-cli binary missing, falling back to Python client: %s", exc)
         except Exception as exc:
             LOGGER.exception("llama-cli invocation failed: %s", exc)
             return LambdaResponse(
                 status_code=500,
                 body={"error": str(exc)},
             ).to_dict()
-        return build_success_response(response_text, "llama.cpp").to_dict()
+        else:
+            return build_success_response(response_text, "llama.cpp").to_dict()
 
     router = LLMRouter()
     routing = router.select(user_input)
