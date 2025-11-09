@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from typing import Dict
 
 import pytest
@@ -149,3 +150,51 @@ def test_lambda_handler_falls_back_to_external_when_local_fails(monkeypatch):
     assert response["statusCode"] == 200
     assert body["engine"] == "external"
     assert body["response"] == "外部応答"
+
+
+def test_lambda_handler_invokes_llama_cli(monkeypatch):
+    os.environ["USE_LOCAL_LLM"] = "true"
+    os.environ["LOCAL_LLM_BACKEND"] = "llama.cpp"
+    os.environ["LOCAL_LLM_MODEL"] = "/app/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+    os.environ["LOCAL_LLM_MAX_TOKENS"] = "128"
+    os.environ["LOCAL_LLM_TEMPERATURE"] = "0.5"
+
+    captured = {}
+
+    def fake_run(command, capture_output, text, check):
+        captured["command"] = command
+
+        class Result:
+            stdout = "ローカル応答\n"
+
+        return Result()
+
+    monkeypatch.setattr(handler.subprocess, "run", fake_run)
+
+    response = invoke({"input": "こんばんは"})
+    body = json.loads(response["body"])
+
+    assert response["statusCode"] == 200
+    assert body["engine"] == "llama.cpp"
+    assert body["response"] == "ローカル応答"
+    assert captured["command"][0] == "/app/llama.cpp/build/bin/llama-cli"
+    assert "-m" in captured["command"]
+    assert "-p" in captured["command"]
+    assert "-n" in captured["command"]
+    assert "--temp" in captured["command"]
+
+
+def test_lambda_handler_returns_error_when_llama_cli_fails(monkeypatch):
+    os.environ["USE_LOCAL_LLM"] = "true"
+    os.environ["LOCAL_LLM_BACKEND"] = "llama.cpp"
+
+    def fake_run(command, capture_output, text, check):
+        raise subprocess.CalledProcessError(returncode=1, cmd=command, stderr="boom")
+
+    monkeypatch.setattr(handler.subprocess, "run", fake_run)
+
+    response = invoke({"input": "失敗テスト"})
+    body = json.loads(response["body"])
+
+    assert response["statusCode"] == 500
+    assert "error" in body
