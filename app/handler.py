@@ -3,8 +3,16 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import subprocess
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
+
+try:  # pragma: no cover - optional dependency is handled gracefully
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - executed when python-dotenv is missing
+    def load_dotenv(*_, **__):
+        logging.getLogger(__name__).debug("python-dotenv not installed; skipping load_dotenv()")
 
 from .llm.external import from_environment as external_from_env
 from .llm.local import LocalLLMConfigurationError
@@ -12,6 +20,68 @@ from .persona import build_character_prompt
 from .router import LLMRouter
 
 LOGGER = logging.getLogger(__name__)
+
+
+load_dotenv()
+
+
+def _normalise_bool(value: Optional[str]) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _coerce_int(value: Optional[str], default: int) -> int:
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        LOGGER.warning("Invalid integer value: %s", value)
+        return default
+
+
+def _coerce_float(value: Optional[str], default: float) -> float:
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        LOGGER.warning("Invalid float value: %s", value)
+        return default
+
+
+def _should_use_llama_cli() -> bool:
+    if not _normalise_bool(os.getenv("USE_LOCAL_LLM")):
+        return False
+    return os.getenv("LOCAL_LLM_BACKEND", "").strip().lower() == "llama.cpp"
+
+
+def _run_llama_cli(prompt: str) -> str:
+    model = os.getenv("LOCAL_LLM_MODEL", "/app/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf")
+    llama_cli = os.getenv("LOCAL_LLM_BINARY", "/app/llama.cpp/build/bin/llama-cli")
+    max_tokens = _coerce_int(os.getenv("LOCAL_LLM_MAX_TOKENS"), 256)
+    temperature = _coerce_float(os.getenv("LOCAL_LLM_TEMPERATURE"), 0.7)
+
+    command = [
+        llama_cli,
+        "-m",
+        model,
+        "-p",
+        prompt,
+        "-n",
+        str(max_tokens),
+        "--temp",
+        str(temperature),
+    ]
+
+    LOGGER.debug("Invoking llama-cli: %s", command)
+
+    result = subprocess.run(command, capture_output=True, text=True, check=True)
+    output = result.stdout.strip()
+    if not output:
+        raise RuntimeError("llama-cli returned an empty response")
+    return output
 
 
 @dataclass
@@ -135,6 +205,17 @@ def lambda_handler(event: Dict[str, Any], context: Optional[Any] = None) -> Dict
         return build_error_response(str(exc), status=400).to_dict()
 
     persona_prompt = build_character_prompt(user_input)
+
+    if _should_use_llama_cli():
+        try:
+            response_text = _run_llama_cli(persona_prompt)
+        except Exception as exc:
+            LOGGER.exception("llama-cli invocation failed: %s", exc)
+            return LambdaResponse(
+                status_code=500,
+                body={"error": str(exc)},
+            ).to_dict()
+        return build_success_response(response_text, "llama.cpp").to_dict()
 
     router = LLMRouter()
     routing = router.select(user_input)
