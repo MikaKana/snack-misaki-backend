@@ -8,6 +8,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import ClassVar, Dict, Optional, Tuple
 
+from ..persona import format_llama_chat_prompt
 from .base import LLMClient
 
 LOGGER = logging.getLogger(__name__)
@@ -209,8 +210,9 @@ class LocalLLMClient(LLMClient):
             raise LocalLLMConfigurationError("GPT4All returned an empty response")
 
         if backend == "llama.cpp":
+            llama_prompt = format_llama_chat_prompt(prompt)
             completion = self._model.create_completion(
-                prompt=prompt,
+                prompt=llama_prompt,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
             )

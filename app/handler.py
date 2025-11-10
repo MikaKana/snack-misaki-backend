@@ -16,7 +16,7 @@ except ImportError:  # pragma: no cover - executed when python-dotenv is missing
 
 from .llm.external import from_environment as external_from_env
 from .llm.local import LocalLLMConfigurationError
-from .persona import build_character_prompt
+from .persona import build_character_prompt, format_llama_chat_prompt
 from .router import LLMRouter
 
 LOGGER = logging.getLogger(__name__)
@@ -63,12 +63,14 @@ def _run_llama_cli(prompt: str) -> str:
     max_tokens = _coerce_int(os.getenv("LOCAL_LLM_MAX_TOKENS"), 256)
     temperature = _coerce_float(os.getenv("LOCAL_LLM_TEMPERATURE"), 0.7)
 
+    formatted_prompt = format_llama_chat_prompt(prompt)
+
     command = [
         llama_cli,
         "-m",
         model,
         "-p",
-        prompt,
+        formatted_prompt,
         "-n",
         str(max_tokens),
         "--temp",

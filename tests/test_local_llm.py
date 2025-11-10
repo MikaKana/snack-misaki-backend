@@ -6,6 +6,7 @@ import types
 import pytest
 
 from app.llm.local import LocalLLMClient, LocalLLMConfigurationError
+from app.persona import format_llama_chat_prompt
 
 
 @pytest.fixture(autouse=True)
@@ -57,7 +58,8 @@ def test_llama_cpp_backend_when_selected(tmp_path):
     model_path.write_text("binary data")
 
     client = LocalLLMClient(model_path=str(model_path), backend="llama.cpp", max_tokens=32, temperature=0.5)
-    assert client.generate("おすすめは？") == "llama:おすすめは？:32:0.5"
+    expected_prompt = format_llama_chat_prompt("おすすめは？")
+    assert client.generate("おすすめは？") == f"llama:{expected_prompt}:32:0.5"
 
 
 def test_missing_backend_raises_error_when_backend_unavailable():
@@ -110,9 +112,11 @@ def test_model_cache_reuses_loaded_instances(tmp_path):
     model_path.write_text("binary data")
 
     client_one = LocalLLMClient(model_path=str(model_path), backend="llama.cpp", max_tokens=16, temperature=0.1)
-    assert client_one.generate("こんばんは") == "cached:こんばんは:16:0.1"
+    expected_prompt_one = format_llama_chat_prompt("こんばんは")
+    assert client_one.generate("こんばんは") == f"cached:{expected_prompt_one}:16:0.1"
 
     client_two = LocalLLMClient(model_path=str(model_path), backend="llama.cpp", max_tokens=32, temperature=0.2)
-    assert client_two.generate("おすすめは？") == "cached:おすすめは？:32:0.2"
+    expected_prompt_two = format_llama_chat_prompt("おすすめは？")
+    assert client_two.generate("おすすめは？") == f"cached:{expected_prompt_two}:32:0.2"
 
     assert FakeLlama.instances == 1
