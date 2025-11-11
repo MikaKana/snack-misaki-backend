@@ -57,6 +57,17 @@ def test_finalize_lambda_response_stringifies_for_apigw_events():
     assert json.loads(result["body"]) == {"response": "テスト", "engine": "local"}
 
 
+def test_finalize_lambda_response_does_not_escape_japanese_characters():
+    response = handler.build_success_response("こんにちは", "local")
+    event = {
+        "body": json.dumps({"input": "hi"}),
+        "requestContext": {"accountId": "123456789012"},
+    }
+    result = handler._finalize_lambda_response(response, event)
+    assert "\\u" not in result["body"]
+    assert "こんにちは" in result["body"]
+
+
 def test_lambda_handler_with_valid_input_uses_local_by_default(monkeypatch):
     os.environ["USE_LOCAL_LLM"] = "true"
     class StubLocalClient:

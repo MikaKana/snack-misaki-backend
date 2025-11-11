@@ -119,7 +119,12 @@ class LambdaResponse:
 
         if stringify_body:
             if isinstance(self.body, str):
-                body_content = self.body
+                try:
+                    parsed_body = json.loads(self.body)
+                except (TypeError, ValueError):
+                    body_content = self.body
+                else:
+                    body_content = json.dumps(parsed_body, ensure_ascii=False)
             else:
                 body_content = json.dumps(self.body, ensure_ascii=False)
         else:
