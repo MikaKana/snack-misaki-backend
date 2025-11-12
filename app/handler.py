@@ -19,9 +19,9 @@ except ImportError:  # pragma: no cover - executed when python-dotenv is missing
 
 from .llm.external import from_environment as external_from_env
 from .llm.local import LocalLLMConfigurationError
+from .llm.utils import clean_llama_completion
 from .persona import build_character_prompt, format_llama_chat_prompt
 from .router import LLMRouter
-from .llm.utils import clean_llama_completion
 
 LOGGER = logging.getLogger(__name__)
 
