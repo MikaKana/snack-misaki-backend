@@ -74,7 +74,7 @@ LOCAL_LLM_TEMPERATURE=0.7
      curl -X POST \
        "http://localhost:9000/2015-03-31/functions/function/invocations" \
        -H "Content-Type: application/json" \
-       -d '{"input": "こんばんは"}'
+       -d '{"input": "こんばんは"}'| jq
      ```
    - 会話履歴をまとめて送り、ローカル LLM が返答することを確認する例
      ```bash
@@ -87,7 +87,7 @@ LOCAL_LLM_TEMPERATURE=0.7
            "assistant: いらっしゃいませ",
            "user: 今日のおすすめは？"
          ]
-       }'
+       }'| jq
      ```
      - `USE_LOCAL_LLM=true` を設定している場合、レスポンス JSON の `engine` が `"local"` となり、会話全体を結合したテキストに対する応答が得られます。
    - 期待するレスポンスが返ってくるかを確認してください。
