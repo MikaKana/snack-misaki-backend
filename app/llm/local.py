@@ -1,4 +1,5 @@
 """Local LLM integrations used during Stage 2 of the project."""
+
 from __future__ import annotations
 
 import importlib
@@ -9,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import ClassVar, Dict, Optional, Tuple
 
 from ..persona import format_llama_chat_prompt
+from .utils import clean_llama_completion
 from .base import LLMClient
 
 LOGGER = logging.getLogger(__name__)
@@ -221,9 +223,12 @@ class LocalLLMClient(LLMClient):
             except (KeyError, IndexError, TypeError):  # pragma: no cover - defensive programming
                 LOGGER.warning("Unexpected llama.cpp response format: %s", completion)
                 raise LocalLLMConfigurationError("llama.cpp response format invalid")
-            text = str(text).strip()
-            if text:
-                return text
+            raw_text = str(text).strip()
+            cleaned_text = clean_llama_completion(raw_text, prompt=llama_prompt) if raw_text else ""
+            final_text = cleaned_text or raw_text
+            if final_text:
+                return final_text
+
             raise LocalLLMConfigurationError("llama.cpp returned an empty response")
 
         raise LocalLLMConfigurationError(f"Unsupported backend selected: {backend}")

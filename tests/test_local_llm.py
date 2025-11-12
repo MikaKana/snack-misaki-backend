@@ -44,13 +44,18 @@ def test_gpt4all_backend_is_used_when_available(tmp_path):
 
 
 def test_llama_cpp_backend_when_selected(tmp_path):
+    captured: dict[str, str] = {}
+
     class FakeLlama:
         def __init__(self, model_path: str, **kwargs):
             self.model_path = model_path
             self.kwargs = kwargs
 
         def create_completion(self, prompt: str, max_tokens: int, temperature: float):
-            return {"choices": [{"text": f"llama:{prompt}:{max_tokens}:{temperature}"}]}
+            captured["prompt"] = prompt
+            captured["max_tokens"] = max_tokens
+            captured["temperature"] = temperature
+            return {"choices": [{"text": "llama-response"}]}
 
     sys.modules["llama_cpp"] = types.SimpleNamespace(Llama=FakeLlama)
 

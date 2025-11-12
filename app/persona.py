@@ -1,4 +1,5 @@
 """Persona helpers for Snack Misaki's mama."""
+
 from __future__ import annotations
 
 PERSONA_DESCRIPTION = (

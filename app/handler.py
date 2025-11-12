@@ -1,4 +1,5 @@
 """AWS Lambda handler for Snack Misaki."""
+
 from __future__ import annotations
 
 import json
@@ -11,13 +12,16 @@ from typing import Any, Dict, Optional
 try:  # pragma: no cover - optional dependency is handled gracefully
     from dotenv import load_dotenv
 except ImportError:  # pragma: no cover - executed when python-dotenv is missing
+
     def load_dotenv(*_, **__):
         logging.getLogger(__name__).debug("python-dotenv not installed; skipping load_dotenv()")
+
 
 from .llm.external import from_environment as external_from_env
 from .llm.local import LocalLLMConfigurationError
 from .persona import build_character_prompt, format_llama_chat_prompt
 from .router import LLMRouter
+from .llm.utils import clean_llama_completion
 
 LOGGER = logging.getLogger(__name__)
 
@@ -93,8 +97,8 @@ def _run_llama_cli(prompt: str) -> str:
     else:
         output = str(output_data)
 
-    return output.strip()
-
+    cleaned_output = clean_llama_completion(output, prompt=formatted_prompt)
+    return cleaned_output or output.strip()
 
 
 @dataclass
@@ -335,6 +339,7 @@ def lambda_handler(event: Dict[str, Any], context: Optional[Any] = None) -> Dict
         build_success_response(response_text, routing.engine),
         event,
     )
+
 
 __all__ = [
     "LambdaResponse",

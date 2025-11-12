@@ -70,6 +70,7 @@ def test_finalize_lambda_response_does_not_escape_japanese_characters():
 
 def test_lambda_handler_with_valid_input_uses_local_by_default(monkeypatch):
     os.environ["USE_LOCAL_LLM"] = "true"
+
     class StubLocalClient:
         def generate(self, prompt: str) -> str:
             return "ローカル応答"
@@ -189,6 +190,7 @@ def test_lambda_handler_falls_back_to_external_when_local_fails(monkeypatch):
     assert body["engine"] == "external"
     assert body["response"] == "外部応答"
 
+
 def test_lambda_handler_missing_llama_cli_falls_back_to_local(monkeypatch):
     os.environ["USE_LOCAL_LLM"] = "true"
     os.environ["LOCAL_LLM_BACKEND"] = "llama.cpp"
@@ -215,7 +217,6 @@ def test_lambda_handler_missing_llama_cli_falls_back_to_local(monkeypatch):
     assert response["statusCode"] == 200
     assert body["engine"] == "local"
     assert body["response"] == "ローカル応答"
-
 
 
 def test_lambda_handler_invokes_llama_cli(monkeypatch):
