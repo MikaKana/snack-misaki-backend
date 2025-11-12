@@ -68,6 +68,12 @@ def test_finalize_lambda_response_does_not_escape_japanese_characters():
     assert "こんにちは" in result["body"]
 
 
+def test_build_success_response_decodes_unicode_sequences():
+    encoded = "\\u3053\\u3093\\u306b\\u3061\\u306f"
+    response = handler.build_success_response(encoded, "local")
+    assert response.body["response"] == "こんにちは"
+
+
 def test_lambda_handler_with_valid_input_uses_local_by_default(monkeypatch):
     os.environ["USE_LOCAL_LLM"] = "true"
 

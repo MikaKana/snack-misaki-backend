@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import codecs
 import json
 import logging
 import os
@@ -249,10 +250,24 @@ def parse_event(event: Dict[str, Any]) -> str:
     return conversation
 
 
+def _decode_unicode_sequences(text: str) -> str:
+    if not isinstance(text, str):
+        return text
+
+    if "\\u" not in text and "\\U" not in text:
+        return text
+
+    try:
+        return codecs.decode(text, "unicode_escape")
+    except (UnicodeDecodeError, ValueError):
+        LOGGER.debug("Failed to decode unicode escape sequences; returning original text")
+        return text
+
+
 def build_success_response(text: str, engine: str) -> LambdaResponse:
     return LambdaResponse(
         status_code=200,
-        body={"response": text, "engine": engine},
+        body={"response": _decode_unicode_sequences(text), "engine": engine},
     )
 
 
