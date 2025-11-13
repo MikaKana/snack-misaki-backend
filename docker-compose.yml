@@ -7,12 +7,13 @@ services:
       target: development
     ports:
       - "9000:8080"
-    environment:
-      USE_LOCAL_LLM: "false"
+    env_file:
+      - .env
     volumes:
-      - ./app:/var/task/app
-      - ./tests:/var/task/tests
-      - ./pyproject.toml:/var/task/pyproject.toml:ro
-      - ./README.md:/var/task/README.md:ro
-      - ./LICENSE:/var/task/LICENSE:ro
-    command: ["app.handler.lambda_handler"]
+      - ./app:/app/app
+      - ./tests:/app/tests
+      - ./pyproject.toml:/app/pyproject.toml:ro
+      - ./README.md:/app/README.md:ro
+      - ./LICENSE:/app/LICENSE:ro
+      - ./models:/app/models
+    command: ["/usr/local/bin/aws-lambda-rie", "python3", "-m", "awslambdaric", "app.handler.lambda_handler"]
