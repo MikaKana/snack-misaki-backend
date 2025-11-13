@@ -1,4 +1,5 @@
 """External API adapters used in Stage 3."""
+
 from __future__ import annotations
 
 import json

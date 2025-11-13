@@ -1,4 +1,5 @@
 """Routing logic that selects between local and external models."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

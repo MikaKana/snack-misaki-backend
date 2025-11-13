@@ -33,8 +33,50 @@ def invoke(event: Dict[str, object]):
     return handler.lambda_handler(event, DummyContext())
 
 
+def get_body(response: Dict[str, object]):
+    body = response["body"]
+    if isinstance(body, str):
+        return json.loads(body)
+    return body
+
+
+def test_finalize_lambda_response_keeps_dict_for_direct_invocations():
+    response = handler.build_success_response("テスト", "local")
+    result = handler._finalize_lambda_response(response, {"body": json.dumps({"input": "hi"})})
+    assert isinstance(result["body"], dict)
+
+
+def test_finalize_lambda_response_stringifies_for_apigw_events():
+    response = handler.build_success_response("テスト", "local")
+    event = {
+        "body": json.dumps({"input": "hi"}),
+        "requestContext": {"accountId": "123456789012"},
+    }
+    result = handler._finalize_lambda_response(response, event)
+    assert isinstance(result["body"], str)
+    assert json.loads(result["body"]) == {"response": "テスト", "engine": "local"}
+
+
+def test_finalize_lambda_response_does_not_escape_japanese_characters():
+    response = handler.build_success_response("こんにちは", "local")
+    event = {
+        "body": json.dumps({"input": "hi"}),
+        "requestContext": {"accountId": "123456789012"},
+    }
+    result = handler._finalize_lambda_response(response, event)
+    assert "\\u" not in result["body"]
+    assert "こんにちは" in result["body"]
+
+
+def test_build_success_response_decodes_unicode_sequences():
+    encoded = "\\u3053\\u3093\\u306b\\u3061\\u306f"
+    response = handler.build_success_response(encoded, "local")
+    assert response.body["response"] == "こんにちは"
+
+
 def test_lambda_handler_with_valid_input_uses_local_by_default(monkeypatch):
     os.environ["USE_LOCAL_LLM"] = "true"
+
     class StubLocalClient:
         def generate(self, prompt: str) -> str:
             return "ローカル応答"
@@ -48,7 +90,7 @@ def test_lambda_handler_with_valid_input_uses_local_by_default(monkeypatch):
 
     event = {"input": "こんばんは"}
     response = invoke(event)
-    body = json.loads(response["body"])
+    body = get_body(response)
     assert response["statusCode"] == 200
     assert body["engine"] == "local"
     assert body["response"] == "ローカル応答"
@@ -58,7 +100,7 @@ def test_lambda_handler_invalid_json_body():
     event = {"body": "{invalid"}
     response = invoke(event)
     assert response["statusCode"] == 400
-    body = json.loads(response["body"])
+    body = get_body(response)
     assert body["error"] == "Invalid JSON body"
 
 
@@ -66,7 +108,7 @@ def test_lambda_handler_missing_input():
     event = {"body": json.dumps({"message": "hi"})}
     response = invoke(event)
     assert response["statusCode"] == 400
-    body = json.loads(response["body"])
+    body = get_body(response)
     assert body["error"] == "Missing 'input' field in request body"
 
 
@@ -121,7 +163,7 @@ def test_lambda_handler_handles_conversation_payload(monkeypatch):
     expected_prompt = build_character_prompt(conversation_text)
 
     response = invoke({"body": json.dumps(payload)})
-    body = json.loads(response["body"])
+    body = get_body(response)
 
     assert response["statusCode"] == 200
     assert body["engine"] == "local"
@@ -149,10 +191,11 @@ def test_lambda_handler_falls_back_to_external_when_local_fails(monkeypatch):
     monkeypatch.setattr(handler, "_attempt_external_fallback", fake_fallback)
 
     response = invoke({"input": "おすすめは？"})
-    body = json.loads(response["body"])
+    body = get_body(response)
     assert response["statusCode"] == 200
     assert body["engine"] == "external"
     assert body["response"] == "外部応答"
+
 
 def test_lambda_handler_missing_llama_cli_falls_back_to_local(monkeypatch):
     os.environ["USE_LOCAL_LLM"] = "true"
@@ -175,12 +218,11 @@ def test_lambda_handler_missing_llama_cli_falls_back_to_local(monkeypatch):
     monkeypatch.setattr(handler.subprocess, "run", fake_run)
 
     response = invoke({"input": "こんばんは"})
-    body = json.loads(response["body"])
+    body = get_body(response)
 
     assert response["statusCode"] == 200
     assert body["engine"] == "local"
     assert body["response"] == "ローカル応答"
-
 
 
 def test_lambda_handler_invokes_llama_cli(monkeypatch):
@@ -203,7 +245,7 @@ def test_lambda_handler_invokes_llama_cli(monkeypatch):
     monkeypatch.setattr(handler.subprocess, "run", fake_run)
 
     response = invoke({"input": "こんばんは"})
-    body = json.loads(response["body"])
+    body = get_body(response)
 
     assert response["statusCode"] == 200
     assert body["engine"] == "llama.cpp"
@@ -225,7 +267,7 @@ def test_lambda_handler_returns_error_when_llama_cli_fails(monkeypatch):
     monkeypatch.setattr(handler.subprocess, "run", fake_run)
 
     response = invoke({"input": "失敗テスト"})
-    body = json.loads(response["body"])
+    body = get_body(response)
 
     assert response["statusCode"] == 500
     assert "error" in body
