@@ -131,6 +131,15 @@ def test_parse_event_handles_proxy_integration():
     assert handler.parse_event(event) == "テスト"
 
 
+def test_parse_event_accepts_user_field():
+    event = {"body": json.dumps({"user": "こんばんは"})}
+    assert handler.parse_event(event) == "こんばんは"
+
+
+def test_parse_event_accepts_user_list():
+    payload = {"user": ["こんばんは", "おげんきですか"]}
+    assert handler.parse_event(payload) == "こんばんは\nおげんきですか"
+
 def test_parse_event_requires_string_input():
     with pytest.raises(ValueError):
         handler.parse_event({"input": 123})

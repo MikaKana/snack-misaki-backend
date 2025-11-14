@@ -186,11 +186,18 @@ def _finalize_lambda_response(response: LambdaResponse, event: Dict[str, Any]) -
 def _normalise_conversation(payload: Dict[str, Any]) -> Optional[str]:
     """Return a textual prompt extracted from ``payload`` if possible."""
 
-    if "input" in payload:
-        user_input = payload["input"]
-        if not isinstance(user_input, str):
-            raise ValueError("'input' must be a string")
-        return user_input
+    for key in ("input", "user"):
+        if key in payload:
+            user_input = payload[key]
+            if isinstance(user_input, str):
+                return user_input
+            if key == "input":
+                raise ValueError("'input' must be a string")
+            if isinstance(user_input, list):
+                if not all(isinstance(item, str) for item in user_input):
+                    raise ValueError("'user' must be a string or list of strings")
+                return "\n".join(user_input)
+            raise ValueError("'user' must be a string")
 
     if "conversation" in payload:
         conversation = payload["conversation"]
